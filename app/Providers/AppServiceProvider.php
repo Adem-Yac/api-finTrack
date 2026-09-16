@@ -2,6 +2,8 @@
 
 namespace App\Providers;
 
+use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\URL;
 use Illuminate\Support\ServiceProvider;
 
@@ -18,6 +20,7 @@ class AppServiceProvider extends ServiceProvider
     {
         if ($this->runningOnVercel()) {
             URL::forceScheme('https');
+            $this->bootstrapSqliteIfNeeded();
         }
     }
 
@@ -42,7 +45,10 @@ class AppServiceProvider extends ServiceProvider
         }
 
         $this->app->useStoragePath($storage);
+    }
 
+    private function bootstrapSqliteIfNeeded(): void
+    {
         if (env('DB_CONNECTION', 'sqlite') !== 'sqlite') {
             return;
         }
@@ -55,6 +61,11 @@ class AppServiceProvider extends ServiceProvider
             } else {
                 touch($sqliteTarget);
             }
+        }
+
+        if (! Schema::hasTable('users')) {
+            Artisan::call('migrate', ['--force' => true]);
+            Artisan::call('db:seed', ['--force' => true]);
         }
     }
 }
