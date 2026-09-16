@@ -1,0 +1,50 @@
+{
+    "$schema": "https://openapi.vercel.sh/vercel.json",
+    "framework": null,
+    "functions": {
+        "api/index.php": {
+            "runtime": "vercel-php@0.9.0",
+            "memory": 1024,
+            "maxDuration": 30
+        }
+    },
+    "routes": [
+        {
+            "src": "/(.*)",
+            "dest": "/api/index.php"
+        }
+    ],
+    "headers": [
+        {
+            "source": "/(.*)",
+            "headers": [
+                { "key": "Access-Control-Allow-Origin", "value": "*" },
+                { "key": "Access-Control-Allow-Methods", "value": "GET, POST, PUT, PATCH, DELETE, OPTIONS" },
+                { "key": "Access-Control-Allow-Headers", "value": "Authorization, Content-Type, Accept, X-Requested-With" }
+            ]
+        }
+    ],
+    "env": {
+        "APP_NAME": "FinTrack",
+        "APP_ENV": "production",
+        "APP_DEBUG": "false",
+        "APP_KEY": "base64:d0l9MOiGETgBxn6y0cKm9WHycTeGv5RrUtHgXJWa8m4=",
+        "APP_URL": "https://api-fintrack.vercel.app",
+        "APP_CONFIG_CACHE": "/tmp/config.php",
+        "APP_EVENTS_CACHE": "/tmp/events.php",
+        "APP_PACKAGES_CACHE": "/tmp/packages.php",
+        "APP_ROUTES_CACHE": "/tmp/routes.php",
+        "APP_SERVICES_CACHE": "/tmp/services.php",
+        "VIEW_COMPILED_PATH": "/tmp/views",
+        "LOG_CHANNEL": "stderr",
+        "LOG_LEVEL": "error",
+        "CACHE_STORE": "array",
+        "SESSION_DRIVER": "array",
+        "QUEUE_CONNECTION": "sync",
+        "MAIL_MAILER": "log",
+        "APP_MAINTENANCE_DRIVER": "cache",
+        "DB_CONNECTION": "sqlite",
+        "DB_DATABASE": "/tmp/database.sqlite",
+        "DB_FOREIGN_KEYS": "true"
+    }
+}

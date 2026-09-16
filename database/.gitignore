@@ -1,1 +1,2 @@
 *.sqlite*
+!vercel-seed.sqlite
