@@ -20,7 +20,9 @@ class AppServiceProvider extends ServiceProvider
     {
         if ($this->runningOnVercel()) {
             URL::forceScheme('https');
-            $this->bootstrapSqliteIfNeeded();
+            if (! $this->app->runningInConsole()) {
+                $this->bootstrapSqliteIfNeeded();
+            }
         }
     }
 

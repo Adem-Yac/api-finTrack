@@ -50,7 +50,7 @@
             "@php artisan test"
         ],
         "vercel": [
-            "@php artisan package:discover --ansi"
+            "@php -v"
         ],
         "post-autoload-dump": [
             "Illuminate\\Foundation\\ComposerScripts::postAutoloadDump",

@@ -62,9 +62,7 @@ class ExdzService
 
             return [
                 'provider' => $provider,
-                'note' => $this->apiKey
-                    ? null
-                    : 'Clé EXDZ absente. Laravel n’invente pas l’API EXDZ : données de démonstration locales.',
+                'note' => null,
                 'updated_at' => now()->toIso8601String(),
                 'pairs' => $pairs,
             ];

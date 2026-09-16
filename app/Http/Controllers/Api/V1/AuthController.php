@@ -16,16 +16,44 @@ class AuthController extends Controller
 {
     public function register(Request $request): JsonResponse
     {
+        $email = $this->blankToNull($request->input('email'));
+        $phone = $this->normalizePhone($request->input('phone'));
+        $request->merge([
+            'email' => $email,
+            'phone' => $phone,
+        ]);
+
         $data = $request->validate([
             'name' => ['required', 'string', 'max:120'],
-            'email' => ['nullable', 'email', 'max:190', 'unique:users,email'],
-            'phone' => ['nullable', 'string', 'max:20', 'unique:users,phone'],
+            'email' => ['nullable', 'email', 'max:190'],
+            'phone' => ['nullable', 'string', 'max:20'],
             'password' => ['required', 'string', 'min:6'],
         ]);
 
         if (empty($data['email']) && empty($data['phone'])) {
             throw ValidationException::withMessages([
                 'email' => 'Email ou numéro de téléphone requis.',
+            ]);
+        }
+
+        $existing = User::query()
+            ->where(function ($query) use ($data): void {
+                if (! empty($data['email'])) {
+                    $query->orWhere('email', $data['email']);
+                }
+                if (! empty($data['phone'])) {
+                    $query->orWhere('phone', $data['phone']);
+                }
+            })
+            ->first();
+
+        if ($existing) {
+            if (Hash::check($data['password'], (string) $existing->password)) {
+                return $this->tokenResponse($existing);
+            }
+
+            throw ValidationException::withMessages([
+                'email' => 'Un compte existe déjà avec cet email ou ce téléphone. Connectez-vous.',
             ]);
         }
 
@@ -42,18 +70,32 @@ class AuthController extends Controller
 
     public function login(Request $request): JsonResponse
     {
-        $data = $request->validate([
-            'identifier' => ['required', 'string'],
-            'password' => ['required', 'string'],
-        ]);
+        $identifier = trim((string) (
+            $request->input('identifier')
+            ?? $request->input('email')
+            ?? $request->input('phone')
+            ?? ''
+        ));
+        $password = (string) $request->input('password', '');
+        $phone = $this->normalizePhone($identifier);
 
-        $identifier = $data['identifier'];
+        if ($identifier === '' || $password === '') {
+            throw ValidationException::withMessages([
+                'identifier' => 'Email ou téléphone, et mot de passe, sont requis.',
+            ]);
+        }
+
         $user = User::query()
-            ->where('email', $identifier)
-            ->orWhere('phone', $identifier)
+            ->where(function ($query) use ($identifier, $phone): void {
+                $query->where('email', $identifier)
+                    ->orWhere('phone', $identifier);
+                if ($phone !== null && $phone !== $identifier) {
+                    $query->orWhere('phone', $phone);
+                }
+            })
             ->first();
 
-        if (! $user || ! Hash::check($data['password'], (string) $user->password)) {
+        if (! $user || ! Hash::check($password, (string) $user->password)) {
             throw ValidationException::withMessages([
                 'identifier' => 'Identifiants incorrects.',
             ]);
@@ -213,5 +255,28 @@ class AuthController extends Controller
         $safe = preg_replace('/\D+/', '', $phone) ?: Str::uuid();
 
         return $safe.'@phone.fintrack.local';
+    }
+
+    private function blankToNull(mixed $value): ?string
+    {
+        if (! is_string($value)) {
+            return null;
+        }
+
+        $trimmed = trim($value);
+
+        return $trimmed === '' ? null : $trimmed;
+    }
+
+    private function normalizePhone(mixed $value): ?string
+    {
+        $phone = $this->blankToNull($value);
+        if ($phone === null) {
+            return null;
+        }
+
+        $digits = preg_replace('/\D+/', '', $phone) ?: $phone;
+
+        return $digits;
     }
 }
