@@ -61,7 +61,7 @@ class BudgetController extends Controller
 
     public function update(Request $request, Budget $budget): JsonResponse
     {
-        abort_unless($budget->user_id === $request->user()->id, 403);
+        $this->authorize('update', $budget);
 
         $data = $request->validate([
             'total_amount' => ['sometimes', 'numeric', 'min:0'],
@@ -84,7 +84,7 @@ class BudgetController extends Controller
 
     public function destroy(Request $request, Budget $budget): JsonResponse
     {
-        abort_unless($budget->user_id === $request->user()->id, 403);
+        $this->authorize('delete', $budget);
         $budget->delete();
 
         return response()->json(['message' => 'Budget supprimé.']);
@@ -92,7 +92,7 @@ class BudgetController extends Controller
 
     public function show(Request $request, Budget $budget): JsonResponse
     {
-        abort_unless($budget->user_id === $request->user()->id, 403);
+        $this->authorize('view', $budget);
 
         return response()->json(['data' => $this->payload($request, $budget->load('categories.category'))]);
     }

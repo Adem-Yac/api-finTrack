@@ -2,10 +2,16 @@
 
 namespace App\Providers;
 
+use App\Models\AppNotification;
+use Illuminate\Cache\RateLimiting\Limit;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\RateLimiter;
+use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\URL;
 use Illuminate\Support\ServiceProvider;
+use Throwable;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -18,17 +24,30 @@ class AppServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
-        if ($this->runningOnVercel()) {
-            URL::forceScheme('https');
-            if (! $this->app->runningInConsole()) {
-                $this->bootstrapSqliteIfNeeded();
-            }
+        RateLimiter::for('auth', function (Request $request) {
+            return Limit::perMinute(8)->by((string) $request->ip());
+        });
+
+        Route::bind('notification', fn (string $value) => AppNotification::query()->findOrFail($value));
+
+        if (! $this->runningOnVercel()) {
+            return;
+        }
+
+        URL::forceScheme('https');
+
+        if (! $this->app->runningInConsole()) {
+            $this->bootstrapSqliteIfNeeded();
         }
     }
 
     private function runningOnVercel(): bool
     {
-        return (bool) (getenv('VERCEL') ?: ($_ENV['VERCEL'] ?? false));
+        if (PHP_OS_FAMILY === 'Windows') {
+            return false;
+        }
+
+        return getenv('VERCEL') === '1';
     }
 
     private function configureVercelFilesystem(): void
@@ -51,11 +70,15 @@ class AppServiceProvider extends ServiceProvider
 
     private function bootstrapSqliteIfNeeded(): void
     {
-        if (env('DB_CONNECTION', 'sqlite') !== 'sqlite') {
+        if (config('database.default') !== 'sqlite') {
             return;
         }
 
-        $sqliteTarget = env('DB_DATABASE', '/tmp/database.sqlite');
+        $sqliteTarget = (string) config('database.connections.sqlite.database');
+        if ($sqliteTarget === '' || $sqliteTarget === ':memory:') {
+            return;
+        }
+
         if (! file_exists($sqliteTarget)) {
             $seed = database_path('vercel-seed.sqlite');
             if (file_exists($seed)) {
@@ -65,9 +88,13 @@ class AppServiceProvider extends ServiceProvider
             }
         }
 
-        if (! Schema::hasTable('users')) {
-            Artisan::call('migrate', ['--force' => true]);
-            Artisan::call('db:seed', ['--force' => true]);
+        try {
+            if (! Schema::hasTable('users')) {
+                Artisan::call('migrate', ['--force' => true]);
+                Artisan::call('db:seed', ['--force' => true]);
+            }
+        } catch (Throwable) {
+            // Cold start without a writable database must not take the API down.
         }
     }
 }

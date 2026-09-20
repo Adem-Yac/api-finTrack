@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
 use App\Models\Goal;
+use App\Services\NotificationService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -35,14 +36,14 @@ class GoalController extends Controller
 
     public function show(Request $request, Goal $goal): JsonResponse
     {
-        abort_unless($goal->user_id === $request->user()->id, 403);
+        $this->authorize('view', $goal);
 
         return response()->json(['data' => $this->payload($goal->load('deposits'))]);
     }
 
     public function update(Request $request, Goal $goal): JsonResponse
     {
-        abort_unless($goal->user_id === $request->user()->id, 403);
+        $this->authorize('update', $goal);
         $data = $request->validate([
             'title' => ['sometimes', 'string', 'max:160'],
             'emoji' => ['nullable', 'string', 'max:8'],
@@ -56,15 +57,15 @@ class GoalController extends Controller
 
     public function destroy(Request $request, Goal $goal): JsonResponse
     {
-        abort_unless($goal->user_id === $request->user()->id, 403);
+        $this->authorize('delete', $goal);
         $goal->delete();
 
         return response()->json(['message' => 'Objectif supprimé.']);
     }
 
-    public function deposit(Request $request, Goal $goal): JsonResponse
+    public function deposit(Request $request, Goal $goal, NotificationService $notifications): JsonResponse
     {
-        abort_unless($goal->user_id === $request->user()->id, 403);
+        $this->authorize('update', $goal);
         $data = $request->validate([
             'amount' => ['required', 'numeric', 'min:0.01'],
             'deposited_on' => ['nullable', 'date'],
@@ -77,11 +78,14 @@ class GoalController extends Controller
             'note' => $data['note'] ?? null,
         ]);
         $goal->increment('current_amount', $data['amount']);
+        $goal = $goal->fresh('deposits');
+        assert($goal instanceof Goal);
+        $notifications->afterGoalDeposit($request->user(), $goal);
 
         return response()->json([
             'data' => [
                 'deposit' => $deposit,
-                'goal' => $this->payload($goal->fresh('deposits')),
+                'goal' => $this->payload($goal),
             ],
         ], 201);
     }

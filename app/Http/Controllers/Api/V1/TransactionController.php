@@ -3,11 +3,12 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Api\V1\StoreTransactionRequest;
 use App\Models\Transaction;
+use App\Services\NotificationService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
-use Illuminate\Validation\Rule;
 
 class TransactionController extends Controller
 {
@@ -36,60 +37,44 @@ class TransactionController extends Controller
         ]);
     }
 
-    public function store(Request $request): JsonResponse
+    public function store(StoreTransactionRequest $request, NotificationService $notifications): JsonResponse
     {
-        $data = $this->validated($request);
-        unset($data['attachment']);
+        $data = $request->safe()->except('attachment');
         $data['user_id'] = $request->user()->id;
         $data['attachment_path'] = $this->storeAttachment($request);
 
         $transaction = Transaction::query()->create($data)->load('category');
+        $notifications->afterTransaction($request->user(), $transaction);
 
         return response()->json(['data' => $this->payload($transaction)], 201);
     }
 
     public function show(Request $request, Transaction $transaction): JsonResponse
     {
-        $this->authorizeOwner($request, $transaction);
+        $this->authorize('view', $transaction);
 
         return response()->json(['data' => $this->payload($transaction->load('category'))]);
     }
 
-    public function update(Request $request, Transaction $transaction): JsonResponse
+    public function update(StoreTransactionRequest $request, Transaction $transaction, NotificationService $notifications): JsonResponse
     {
-        $this->authorizeOwner($request, $transaction);
-        $data = $this->validated($request, false);
-        unset($data['attachment']);
+        $this->authorize('update', $transaction);
+        $data = $request->safe()->except('attachment');
         if ($request->hasFile('attachment')) {
             $data['attachment_path'] = $this->storeAttachment($request);
         }
         $transaction->update($data);
+        $notifications->afterTransaction($request->user(), $transaction->fresh());
 
         return response()->json(['data' => $this->payload($transaction->fresh('category'))]);
     }
 
     public function destroy(Request $request, Transaction $transaction): JsonResponse
     {
-        $this->authorizeOwner($request, $transaction);
+        $this->authorize('delete', $transaction);
         $transaction->delete();
 
         return response()->json(['message' => 'Transaction supprimée.']);
-    }
-
-    private function validated(Request $request, bool $required = true): array
-    {
-        $rule = $required ? 'required' : 'sometimes';
-
-        return $request->validate([
-            'category_id' => [$rule, 'integer', 'exists:categories,id'],
-            'type' => [$rule, Rule::in(['income', 'expense'])],
-            'amount' => [$rule, 'numeric', 'min:0.01'],
-            'currency' => ['sometimes', 'string', 'size:3'],
-            'occurred_on' => [$rule, 'date'],
-            'note' => ['nullable', 'string', 'max:255'],
-            'payment_method' => ['nullable', 'string', 'max:40'],
-            'attachment' => ['nullable', 'file', 'max:4096'],
-        ]);
     }
 
     private function storeAttachment(Request $request): ?string
@@ -99,11 +84,6 @@ class TransactionController extends Controller
         }
 
         return $request->file('attachment')->store('attachments', 'public');
-    }
-
-    private function authorizeOwner(Request $request, Transaction $transaction): void
-    {
-        abort_unless($transaction->user_id === $request->user()->id, 403);
     }
 
     private function payload(Transaction $transaction): array
