@@ -87,7 +87,7 @@ class AuthController extends Controller
 
         $user = User::query()
             ->where(function ($query) use ($identifier, $phone): void {
-                $query->where('email', $identifier)
+                $query->whereRaw('LOWER(email) = ?', [mb_strtolower($identifier)])
                     ->orWhere('phone', $identifier);
                 if ($phone !== null && $phone !== $identifier) {
                     $query->orWhere('phone', $phone);
@@ -270,12 +270,18 @@ class AuthController extends Controller
 
     private function normalizePhone(mixed $value): ?string
     {
-        $phone = $this->blankToNull($value);
-        if ($phone === null) {
+        if (! is_string($value) && ! is_numeric($value)) {
             return null;
         }
 
-        $digits = preg_replace('/\D+/', '', $phone) ?: $phone;
+        $digits = preg_replace('/\D+/', '', (string) $value) ?: '';
+        if ($digits === '') {
+            return null;
+        }
+
+        if (str_starts_with($digits, '213') && strlen($digits) >= 12) {
+            $digits = '0'.substr($digits, 3);
+        }
 
         return $digits;
     }

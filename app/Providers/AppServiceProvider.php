@@ -3,6 +3,7 @@
 namespace App\Providers;
 
 use App\Models\AppNotification;
+use App\Models\User;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Artisan;
@@ -25,7 +26,7 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         RateLimiter::for('auth', function (Request $request) {
-            return Limit::perMinute(8)->by((string) $request->ip());
+            return Limit::perMinute(20)->by((string) $request->ip());
         });
 
         Route::bind('notification', fn (string $value) => AppNotification::query()->findOrFail($value));
@@ -91,6 +92,8 @@ class AppServiceProvider extends ServiceProvider
         try {
             if (! Schema::hasTable('users')) {
                 Artisan::call('migrate', ['--force' => true]);
+            }
+            if (Schema::hasTable('users') && User::query()->doesntExist()) {
                 Artisan::call('db:seed', ['--force' => true]);
             }
         } catch (Throwable) {
