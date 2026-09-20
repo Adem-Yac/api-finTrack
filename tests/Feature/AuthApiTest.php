@@ -39,6 +39,18 @@ class AuthApiTest extends TestCase
         ])->assertStatus(422);
     }
 
+    public function test_register_creates_account_with_algerian_phone(): void
+    {
+        $this->postJson('/api/v1/auth/register', [
+            'name' => 'Sara B',
+            'phone' => '+213 555 12 34 56',
+            'password' => 'secret12',
+        ])
+            ->assertCreated()
+            ->assertJsonPath('data.user.phone', '0555123456')
+            ->assertJsonStructure(['data' => ['token', 'user']]);
+    }
+
     public function test_me_requires_authentication(): void
     {
         $this->getJson('/api/v1/auth/me')->assertUnauthorized();
